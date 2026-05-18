@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 )
 
 type walkable interface {
-	// WalkEnter(fn enter_func) error
 	Walk(fn func(node Node) error) error
 }
 
@@ -41,16 +41,26 @@ type Tracer interface {
 // The returned tracer is not safe for concurrent use; wrap with
 // [NewSyncTracer] if multiple goroutines need to share one.
 func NewTracer() Tracer {
-	chain := make([]Node, 1, 32)
-	chain[0] = &Enter{
-		name: string(START_NODE),
-	}
-	return &tracer{
-		stack:           chain,
-		where:           chain[0].(*Enter),
-		messagesEnabled: true,
-	}
+	t := &tracer{messagesEnabled: true}
+	rootIdx := t.intern(START_NODE)
+	root := &Enter{nameIdx: rootIdx, owner: t, idx: 0}
+	t.stack = make([]Node, 1, 32)
+	t.stack[0] = root
+	t.where = root
+	return t
+}
 
+// NewTracerWithTime constructs a [Tracer] that stamps every Enter,
+// Exit, and Message node with [time.Time] at the moment of recording.
+// Adds one [time.Since] call per recorded node compared to [NewTracer].
+// Required for downstream consumers that want per-scope durations.
+func NewTracerWithTime() Tracer {
+	t := NewTracer().(*tracer)
+	t.timed = true
+	t.start = time.Now()
+	// parallel timestamps slice. tns[0] = 0 for the START node.
+	t.tns = make([]int64, 1, 32)
+	return t
 }
 
 // local debug flag
@@ -86,27 +96,29 @@ type Node interface {
 
 // Enter is a node marking the beginning of a traced scope.
 type Enter struct {
-	name string
-	// next/prev nodes in the chain
-	next Node
-	prev Node
-	// parent node -- where are we are entering from
-	parent *Enter
+	nameIdx uint32
+	idx     uint32
+	owner   *tracer
+	parent  *Enter
 }
+
+// Time returns the wall-clock entry time, or zero if the tracer was not
+// constructed with [NewTracerWithTime].
+func (n *Enter) Time() time.Time { return nodeTime(n.owner, n.idx) }
 
 func (n Enter) String() string {
 	var out strings.Builder
 	if n.parent != nil {
-		out.WriteString(string(n.parent.name))
+		out.WriteString(n.parent.Name())
 		out.WriteString(" -> ")
 	}
-	out.WriteString(string(n.name))
+	out.WriteString(n.Name())
 	return out.String()
 }
 
-func (n *Enter) Next() Node   { return n.next }
-func (n *Enter) Prev() Node   { return n.prev }
-func (n *Enter) Name() string { return n.name }
+func (n *Enter) Next() Node   { return nodeNext(n.owner, n.idx) }
+func (n *Enter) Prev() Node   { return nodePrev(n.owner, n.idx) }
+func (n *Enter) Name() string { return nodeName(n.owner, n.nameIdx) }
 
 var (
 	_ Node   = (*Enter)(nil)
@@ -117,29 +129,31 @@ var (
 // Exit is a node marking the end of a traced scope, paired with the
 // [Enter] returned by [Tracer.Trace] via [Tracer.Un].
 type Exit struct {
-	name string
-	// next/prev nodes in the chain
-	next Node
-	prev Node
-	// parent node -- what is this an exit from
-	parent *Enter
+	nameIdx uint32
+	idx     uint32
+	owner   *tracer
+	parent  *Enter
 }
+
+// Time returns the wall-clock exit time, or zero if the tracer was not
+// constructed with [NewTracerWithTime].
+func (n *Exit) Time() time.Time { return nodeTime(n.owner, n.idx) }
 
 func (n *Exit) String() string {
 	var out strings.Builder
 	if n.parent != nil && n.parent.parent != nil {
-		out.WriteString(string(n.parent.parent.name))
+		out.WriteString(n.parent.parent.Name())
 		out.WriteString(" <- ")
-		out.WriteString(string(n.name))
+		out.WriteString(n.Name())
 	} else {
-		out.WriteString(string(n.name))
+		out.WriteString(n.Name())
 	}
 	return out.String()
 }
-func (n *Exit) Next() Node { return n.next }
-func (n *Exit) Prev() Node { return n.prev }
 
-func (n *Exit) Name() string { return n.name }
+func (n *Exit) Next() Node   { return nodeNext(n.owner, n.idx) }
+func (n *Exit) Prev() Node   { return nodePrev(n.owner, n.idx) }
+func (n *Exit) Name() string { return nodeName(n.owner, n.nameIdx) }
 
 var (
 	_ Node   = (*Exit)(nil)
@@ -151,12 +165,14 @@ var (
 // it was recorded.
 type Message struct {
 	Message string
-	// next/prev nodes in the chain
-	next Node
-	prev Node
-	// parent node -- the enter node at which we are messaging
-	parent *Enter
+	idx     uint32
+	owner   *tracer
+	parent  *Enter
 }
+
+// Time returns the wall-clock message time, or zero if the tracer was
+// not constructed with [NewTracerWithTime].
+func (m *Message) Time() time.Time { return nodeTime(m.owner, m.idx) }
 
 func (m Message) String() string {
 	var out strings.Builder
@@ -171,30 +187,70 @@ func (m Message) String() string {
 func (m *Message) Stack() []string {
 	stack := make([]string, 0)
 	for n := m.parent; n != nil; n = n.parent {
-		if n.name == START_NODE {
+		if n.Name() == START_NODE {
 			break
 		}
-		stack = append(stack, n.name)
+		stack = append(stack, n.Name())
 	}
 	return stack
 }
 
-func (m *Message) Next() Node { return m.next }
-func (m *Message) Prev() Node { return m.prev }
+func (m *Message) Next() Node { return nodeNext(m.owner, m.idx) }
+func (m *Message) Prev() Node { return nodePrev(m.owner, m.idx) }
 
 // ParentName returns the name of the enclosing function scope at the time
 // the message was emitted. empty if at the root.
 func (m *Message) ParentName() string {
-	if m.parent == nil || m.parent.name == START_NODE {
+	if m.parent == nil {
 		return ""
 	}
-	return m.parent.name
+	name := m.parent.Name()
+	if name == START_NODE {
+		return ""
+	}
+	return name
 }
 
 var (
 	_ Node   = (*Message)(nil)
 	_ linked = (*Message)(nil)
 )
+
+// nodeNext / nodePrev / nodeTime / nodeName are shared helpers backing
+// the per-node methods. The neighbour lookups go through the owner
+// tracer's stack so the linked-list pointers don't have to live on the
+// node structs themselves -- saving 32B/node (next + prev iface words).
+func nodeNext(t *tracer, idx uint32) Node {
+	if t == nil {
+		return nil
+	}
+	next := int(idx) + 1
+	if next >= len(t.stack) {
+		return nil
+	}
+	return t.stack[next]
+}
+
+func nodePrev(t *tracer, idx uint32) Node {
+	if t == nil || idx == 0 {
+		return nil
+	}
+	return t.stack[idx-1]
+}
+
+func nodeTime(t *tracer, idx uint32) time.Time {
+	if t == nil || !t.timed {
+		return time.Time{}
+	}
+	return t.start.Add(time.Duration(t.tns[idx]))
+}
+
+func nodeName(t *tracer, nameIdx uint32) string {
+	if t == nil {
+		return ""
+	}
+	return t.names[nameIdx]
+}
 
 type tracer struct {
 	stack []Node
@@ -204,10 +260,50 @@ type tracer struct {
 	messagesEnabled bool
 	// set once Done has appended the closing END_NODE exit
 	done bool
+	// when true, every appended node gets a timestamp pushed into tns
+	timed bool
+	// per-tracer string pool for Enter/Exit names (interned). Indexed by
+	// nameIdx fields on Enter/Exit. Saves bytes when the same scope name
+	// is recorded many times (typical for parsers / recursive descent).
+	names   []string
+	nameMap map[string]uint32
+	// single-entry intern cache; hits when the same name is interned twice
+	// in a row (typical for recursive descent parsers).
+	lastInternStr string
+	lastInternIdx uint32
+	// parallel slice of nanosecond offsets from start, indexed by node.idx.
+	// nil unless timed.
+	tns   []int64
+	start time.Time
 	// chunked arenas: pointers handed out remain valid across grows
 	enters arena[Enter]
 	exits  arena[Exit]
 	msgs   arena[Message]
+}
+
+// intern looks up s in the per-tracer name pool, returning its index.
+// A single-entry cache (lastInternStr / lastInternIdx) short-circuits
+// the map lookup when the same name is interned consecutively -- the
+// common case for parsers and other recursive-descent workloads that
+// re-enter the same scope thousands of times.
+func (t *tracer) intern(s string) uint32 {
+	if s == t.lastInternStr && t.lastInternStr != "" {
+		return t.lastInternIdx
+	}
+	var i uint32
+	if existing, ok := t.nameMap[s]; ok {
+		i = existing
+	} else {
+		if t.nameMap == nil {
+			t.nameMap = make(map[string]uint32, 32)
+		}
+		i = uint32(len(t.names))
+		t.names = append(t.names, s)
+		t.nameMap[s] = i
+	}
+	t.lastInternStr = s
+	t.lastInternIdx = i
+	return i
 }
 
 // arenaChunk is the per-chunk capacity. tuned for typical trace depths.
@@ -236,27 +332,32 @@ func (a *arena[T]) new(v T) *T {
 func (t *tracer) SetMessagesEnabled(b bool) { t.messagesEnabled = b }
 func (t *tracer) MessagesEnabled() bool     { return t.messagesEnabled }
 
-// Append any number of nodes to the chain
+// append assigns the idx + owner backref, links parent for Enter/Exit,
+// pushes the node onto the stack, and stamps a timestamp into tns if
+// the tracer is timed.
 func (t *tracer) append(node ...Node) {
 	for _, n := range node {
-		// link new node with the top of the stack
-		top := t.stack[len(t.stack)-1]
-		top.(settable_next).SetNext(n)
-		n.(settable_prev).SetPrev(top)
-		// if we've added an new enter node, set the parent
+		idx := uint32(len(t.stack))
 		switch n := n.(type) {
 		case *Enter:
+			n.idx = idx
+			n.owner = t
 			n.parent = t.where
-			t.where = n // and update the where pointer
+			t.where = n
 		case *Exit:
+			n.idx = idx
+			n.owner = t
 			t.where = n.parent.parent
 		case *Message:
-			// nothing to do for message nodes
+			n.idx = idx
+			n.owner = t
 		default:
 			panic("unknown node type")
 		}
-		// actually set the next node
 		t.stack = append(t.stack, n)
+		if t.timed {
+			t.tns = append(t.tns, time.Since(t.start).Nanoseconds())
+		}
 	}
 }
 
@@ -303,17 +404,15 @@ func whereToString(where_args ...string) string {
 func (t *tracer) Trace(where ...string) *Exit {
 	where_str := whereToString(where...)
 	debug("> entering", where_str)
-	n := t.enters.new(Enter{name: where_str})
+	nameIdx := t.intern(where_str)
+	n := t.enters.new(Enter{nameIdx: nameIdx})
 	t.append(n)
-	return t.exits.new(Exit{
-		name:   where_str,
-		parent: n,
-	})
+	return t.exits.new(Exit{nameIdx: nameIdx, parent: n})
 }
 
 // Usage pattern: defer t.Un(t.Trace(p, "..."))
 func (t *tracer) Un(exit *Exit) {
-	debug("< exiting", exit.name)
+	debug("< exiting")
 	t.append(exit)
 }
 
@@ -336,11 +435,12 @@ func argsToMessage(args ...any) string {
 	}
 	return msg
 }
+
 func (t *tracer) Message(args ...any) {
 	if !t.messagesEnabled {
 		return
 	}
-	debug("  messaging", t.where.name)
+	debug("  messaging")
 	t.append(t.msgs.new(Message{
 		Message: argsToMessage(args...),
 		parent:  t.where,
@@ -351,39 +451,21 @@ func (t *tracer) Messagef(format string, args ...any) {
 	if !t.messagesEnabled {
 		return
 	}
-	debug("  messaging", t.where.name)
+	debug("  messaging")
 	t.append(t.msgs.new(Message{
 		Message: fmt.Sprintf(format, args...),
 		parent:  t.where,
 	}))
 }
 
-type settable_next interface{ SetNext(Node) }
-type settable_prev interface{ SetPrev(Node) }
-
-func (t *Enter) SetNext(n Node)   { t.next = n }
-func (t *Enter) SetPrev(n Node)   { t.prev = n }
-func (t *Exit) SetNext(n Node)    { t.next = n }
-func (t *Exit) SetPrev(n Node)    { t.prev = n }
-func (t *Message) SetNext(n Node) { t.next = n }
-func (t *Message) SetPrev(n Node) { t.prev = n }
-
-var (
-	_ settable_next = (*Enter)(nil)
-	_ settable_next = (*Exit)(nil)
-	_ settable_prev = (*Enter)(nil)
-	_ settable_prev = (*Exit)(nil)
-	_ settable_next = (*Message)(nil)
-	_ settable_prev = (*Message)(nil)
-)
-
 func (t *tracer) Done() {
 	if t.done {
 		return
 	}
+	nameIdx := t.intern(END_NODE)
 	t.append(t.exits.new(Exit{
-		name:   END_NODE,
-		parent: t.stack[0].(*Enter), // link to the START_NODE
+		nameIdx: nameIdx,
+		parent:  t.stack[0].(*Enter), // link to the START_NODE
 	}))
 	t.done = true
 }
@@ -398,7 +480,6 @@ func (t *tracer) ToWalkable() (walkable, error) {
 
 func (t *tracer) Messages() []Message {
 	messages := make([]Message, 0)
-	// stack := make([]*Enter, 0)
 	walkable, err := t.ToWalkable()
 	if err != nil {
 		return nil
