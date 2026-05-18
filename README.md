@@ -58,7 +58,20 @@ output:
 - `Here()` -- auto-name from caller info.
 - `Message`, `Messagef` -- inline messages.
 - `SetMessagesEnabled(bool)` -- runtime gate. "structure-only" / "no-messages" mode: when off, `Message` / `Messagef` become no-ops while enter/exit nodes still record. Toggle freely mid-trace to silence noisy sections (e.g. per-token logging inside a parser) without losing the call-tree shape.
+- `Reset()` -- drop recorded nodes and restart. arenas + name pool stay warm for recycled use (pools, repeated benches). ~30% faster than `NewTracer` on a 64-deep tree.
 - `ToWalkable()` -- finalises the trace (idempotent), returns an iterable.
+
+### timestamps
+
+opt-in via `NewTracerWithTime()` -- every node carries a `time.Time` accessible via `Time()`. adds ~70ns per recorded node (`time.Since`). default tracer's nodes return zero time.
+
+```go
+tr := trace.NewTracerWithTime()
+// ...
+for n := range walk(tr) {
+    fmt.Println(n.Name(), n.Time())
+}
+```
 
 ### context helpers
 
