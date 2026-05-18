@@ -35,6 +35,10 @@ type Tracer interface {
 	SetMessagesEnabled(bool)
 	// query message recording state
 	MessagesEnabled() bool
+	// drop all recorded nodes and restart with an empty trace. The arena
+	// chunks, stack backing, and name pool are reused where possible so
+	// recycled tracers (e.g. from a sync.Pool) do not re-allocate.
+	Reset()
 }
 
 // NewTracer constructs a new [Tracer] with message recording enabled.
@@ -317,6 +321,17 @@ type arena[T any] struct {
 	idx    int
 }
 
+// reset rewinds the arena's bump pointer to the start of the first
+// chunk, keeping that chunk's backing for warm reuse. All later chunks
+// are released for GC. Pointers previously handed out are now stale --
+// callers must drop their references before reset.
+func (a *arena[T]) reset() {
+	if len(a.chunks) > 1 {
+		a.chunks = a.chunks[:1]
+	}
+	a.idx = 0
+}
+
 func (a *arena[T]) new(v T) *T {
 	if len(a.chunks) == 0 || a.idx == arenaChunk {
 		a.chunks = append(a.chunks, make([]T, arenaChunk))
@@ -331,6 +346,24 @@ func (a *arena[T]) new(v T) *T {
 
 func (t *tracer) SetMessagesEnabled(b bool) { t.messagesEnabled = b }
 func (t *tracer) MessagesEnabled() bool     { return t.messagesEnabled }
+
+func (t *tracer) Reset() {
+	root := t.stack[0].(*Enter)
+	root.parent = nil
+	t.stack = t.stack[:1]
+	t.where = root
+	t.done = false
+	if t.timed {
+		t.start = time.Now()
+		t.tns = t.tns[:1]
+	}
+	t.enters.reset()
+	t.exits.reset()
+	t.msgs.reset()
+	// names + nameMap intentionally kept: the same set of scope names is
+	// almost always reused on the next cycle, so keeping them warm avoids
+	// re-interning. lastInternStr stays too for the cache hit.
+}
 
 // append assigns the idx + owner backref, links parent for Enter/Exit,
 // pushes the node onto the stack, and stamps a timestamp into tns if

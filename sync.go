@@ -83,4 +83,10 @@ func (s *SyncTracer) MessagesEnabled() bool {
 	return r
 }
 
+func (s *SyncTracer) Reset() {
+	s.mu.Lock()
+	s.t.Reset()
+	s.mu.Unlock()
+}
+
 var _ Tracer = (*SyncTracer)(nil)
