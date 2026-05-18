@@ -38,7 +38,7 @@ type Tracer interface {
 }
 
 func NewTracer() Tracer {
-	chain := make([]Node, 1)
+	chain := make([]Node, 1, 32)
 	chain[0] = &Enter{
 		name: string(START_NODE),
 	}

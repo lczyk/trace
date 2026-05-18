@@ -8,15 +8,50 @@ import (
 	"github.com/lczyk/trace"
 )
 
-// helper to write trace output with indentation
+// writer wraps io.Writer with a growable dot-indent buffer to avoid
+// per-line fmt.Sprintf / strings.Repeat allocs in the hot path.
 type writer struct {
-	io.Writer
+	out  io.Writer
+	dots []byte // pool of '.' bytes; sliced for indent
+	line []byte // scratch buffer for one line
 }
 
-func (w *writer) W(symbol rune, indent int, name string) {
-	f := "%s%c %s\n"
-	msg := fmt.Sprintf(f, strings.Repeat(".", indent*2), symbol, name)
-	w.Write([]byte(msg))
+func newWriter(out io.Writer) *writer {
+	return &writer{
+		out:  out,
+		dots: make([]byte, 0, 128),
+		line: make([]byte, 0, 256),
+	}
+}
+
+func (w *writer) indent(n int) []byte {
+	need := n * 2
+	for len(w.dots) < need {
+		w.dots = append(w.dots, '.')
+	}
+	return w.dots[:need]
+}
+
+// W writes "<indent><symbol> <name>\n"
+func (w *writer) W(symbol byte, indent int, name string) {
+	w.line = w.line[:0]
+	w.line = append(w.line, w.indent(indent)...)
+	w.line = append(w.line, symbol, ' ')
+	w.line = append(w.line, name...)
+	w.line = append(w.line, '\n')
+	w.out.Write(w.line)
+}
+
+// W2 writes "<indent><symbol> [<scope>] <name>\n"
+func (w *writer) W2(symbol byte, indent int, scope, name string) {
+	w.line = w.line[:0]
+	w.line = append(w.line, w.indent(indent)...)
+	w.line = append(w.line, symbol, ' ', '[')
+	w.line = append(w.line, scope...)
+	w.line = append(w.line, ']', ' ')
+	w.line = append(w.line, name...)
+	w.line = append(w.line, '\n')
+	w.out.Write(w.line)
 }
 
 func NewTracePrinter(
@@ -28,7 +63,7 @@ func NewTracePrinter(
 		return func(n trace.Node) error { return nil }
 	}
 	indent := 0
-	w := writer{out}
+	w := newWriter(out)
 	return func(n trace.Node) error {
 		switch n := n.(type) {
 		case *trace.Enter:
@@ -47,7 +82,7 @@ func NewTracePrinter(
 			if print_messages {
 				scope := n.ParentName()
 				if scope != "" {
-					w.W('@', indent, fmt.Sprintf("[%s] %s", scope, n.Message))
+					w.W2('@', indent, scope, n.Message)
 				} else {
 					w.W('@', indent, n.Message)
 				}
