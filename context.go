@@ -64,3 +64,10 @@ func MessageCtx(ctx context.Context, args ...any) {
 		tracer.Message(args...)
 	}
 }
+
+func MessagefCtx(ctx context.Context, format string, args ...any) {
+	tracer := GetTracer(ctx)
+	if tracer != nil {
+		tracer.Messagef(format, args...)
+	}
+}

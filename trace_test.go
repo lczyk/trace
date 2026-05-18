@@ -98,9 +98,7 @@ func TestTraceWithout(t *testing.T) {
 func TestTraceToWalkable(t *testing.T) {
 	tracer := trace.NewTracer()
 	first(tracer)
-	_, err := tracer.ToWalkable()
-	assert.Error(t, err, "not walkable")
-	tracer.Done()
+	// ToWalkable now Dones implicitly; no error path expected
 	walkable, err := tracer.ToWalkable()
 	assert.NoError(t, err)
 	fmt.Println("Walkable:")
@@ -108,4 +106,23 @@ func TestTraceToWalkable(t *testing.T) {
 		fmt.Println(node)
 		return nil
 	})
+}
+
+func TestSetMessagesEnabled(t *testing.T) {
+	tracer := trace.NewTracer()
+	tracer.Message("on1")
+	tracer.SetMessagesEnabled(false)
+	tracer.Message("off")
+	tracer.Messagef("off %d", 2)
+	tracer.SetMessagesEnabled(true)
+	tracer.Messagef("on %d", 2)
+	assert.Equal(t, len(tracer.Messages()), 2)
+}
+
+func TestMessagef(t *testing.T) {
+	tracer := trace.NewTracer()
+	tracer.Messagef("%s=%d", "x", 42)
+	msgs := tracer.Messages()
+	assert.Equal(t, len(msgs), 1)
+	assert.Equal(t, msgs[0].Message, "x=42")
 }

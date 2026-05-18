@@ -21,14 +21,20 @@ type Tracer interface {
 	Un(*Exit)
 	// add a message to the trace
 	Message(args ...any)
+	// add a printf-style message to the trace
+	Messagef(format string, args ...any)
 	// get all the messages
 	Messages() []Message
-	// mark the end of the trace
+	// mark the end of the trace (idempotent)
 	Done()
-	// return the tracer as a walkable object
+	// return the tracer as a walkable object. calls Done implicitly.
 	ToWalkable() (walkable, error)
 	// length of the trace stack
 	Len() int
+	// enable/disable message recording. enter/exit nodes are unaffected.
+	SetMessagesEnabled(bool)
+	// query message recording state
+	MessagesEnabled() bool
 }
 
 func NewTracer() Tracer {
@@ -37,8 +43,9 @@ func NewTracer() Tracer {
 		name: string(START_NODE),
 	}
 	return &tracer{
-		stack: chain,
-		where: chain[0].(*Enter),
+		stack:           chain,
+		where:           chain[0].(*Enter),
+		messagesEnabled: true,
 	}
 
 }
@@ -164,6 +171,15 @@ func (m *Message) Stack() []string {
 func (m *Message) Next() Node { return m.next }
 func (m *Message) Prev() Node { return m.prev }
 
+// ParentName returns the name of the enclosing function scope at the time
+// the message was emitted. empty if at the root.
+func (m *Message) ParentName() string {
+	if m.parent == nil || m.parent.name == START_NODE {
+		return ""
+	}
+	return m.parent.name
+}
+
 var (
 	_ Node   = (*Message)(nil)
 	_ linked = (*Message)(nil)
@@ -173,7 +189,14 @@ type tracer struct {
 	stack []Node
 	// pointer to the enter node of the current function
 	where *Enter
+	// gate for Message/Messagef. enter/exit unaffected.
+	messagesEnabled bool
+	// set once Done has appended the closing END_NODE exit
+	done bool
 }
+
+func (t *tracer) SetMessagesEnabled(b bool) { t.messagesEnabled = b }
+func (t *tracer) MessagesEnabled() bool     { return t.messagesEnabled }
 
 // Append any number of nodes to the chain
 func (t *tracer) append(node ...Node) {
@@ -269,10 +292,24 @@ func argsToMessage(args ...any) string {
 	return msg
 }
 func (t *tracer) Message(args ...any) {
+	if !t.messagesEnabled {
+		return
+	}
 	debug("  messaging", t.where.name)
 	message := argsToMessage(args...)
 	t.append(&Message{
 		Message: message,
+		parent:  t.where,
+	})
+}
+
+func (t *tracer) Messagef(format string, args ...any) {
+	if !t.messagesEnabled {
+		return
+	}
+	debug("  messaging", t.where.name)
+	t.append(&Message{
+		Message: fmt.Sprintf(format, args...),
 		parent:  t.where,
 	})
 }
@@ -297,25 +334,21 @@ var (
 )
 
 func (t *tracer) Done() {
+	if t.done {
+		return
+	}
 	t.append(&Exit{
 		name:   END_NODE,
 		parent: t.stack[0].(*Enter), // link to the START_NODE
 	})
+	t.done = true
 }
 
 func (t *tracer) ToWalkable() (walkable, error) {
 	if t.stack == nil {
 		panic("call stack is empty")
 	}
-	// check we're done with the tracing
-	switch n := t.stack[len(t.stack)-1].(type) {
-	case *Enter:
-		return nil, fmt.Errorf("not walkable. tracer is not done. last node was an enter node: %s", n.name)
-	case *Exit:
-		if n.name != END_NODE {
-			return nil, fmt.Errorf("not walkable. tracer is not done. last node was not an exit node of the root node: %s", n.name)
-		}
-	}
+	t.Done()
 	return t, nil
 }
 

@@ -45,7 +45,12 @@ func NewTracePrinter(
 			w.W('<', indent, n.Name())
 		case *trace.Message:
 			if print_messages {
-				w.W('@', indent, n.Message)
+				scope := n.ParentName()
+				if scope != "" {
+					w.W('@', indent, fmt.Sprintf("[%s] %s", scope, n.Message))
+				} else {
+					w.W('@', indent, n.Message)
+				}
 			}
 		default:
 			panic(fmt.Sprintf("unknown node type: %T", n))
@@ -58,7 +63,6 @@ func SprintTrace(
 	tracer trace.Tracer,
 	print_messages bool,
 ) string {
-	tracer.Done()
 	walkable, err := tracer.ToWalkable()
 	if err != nil {
 		panic(err)
