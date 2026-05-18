@@ -26,6 +26,10 @@ cover:  ## Coverage profile + HTML file (cover.out, cover.html)
 cover-open: cover  ## Run coverage and open the HTML report in a browser
 	go tool cover -html=cover.out
 
+.PHONY: demo
+demo:  ## Run the demos (trace-output showcases)
+	./demo/demo_runner.sh
+
 .PHONY: lint
 lint:  ## go vet + gofmt check (no writes)
 	go vet ./...
