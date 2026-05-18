@@ -51,6 +51,25 @@ func ExampleIsTracing() {
 	// Output:
 }
 
+func ExampleNewTracerWithTime() {
+	tr := trace.NewTracerWithTime()
+	defer tr.Un(tr.Trace("work"))
+	// nodes carry timestamps now; ordinary printing still works
+	_ = tr
+	// Output:
+}
+
+func ExampleTracer_Reset() {
+	tr := trace.NewTracer()
+	for i := 0; i < 2; i++ {
+		tr.Reset()
+		func() {
+			defer tr.Un(tr.Trace("cycle"))
+		}()
+	}
+	// Output:
+}
+
 func ExampleTracer_SetMessagesEnabled() {
 	tr := trace.NewTracer()
 	tr.SetMessagesEnabled(false)
