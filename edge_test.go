@@ -2,6 +2,7 @@ package trace_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -137,6 +138,19 @@ func TestMessageParentNameRoot(t *testing.T) {
 	msgs := tr.Messages()
 	assert.Equal(t, len(msgs), 1)
 	assert.Equal(t, msgs[0].ParentName(), "")
+}
+
+// MaybeWithTracer respects the enabled flag.
+func TestMaybeWithTracer(t *testing.T) {
+	ctx := context.Background()
+	off := trace.MaybeWithTracer(ctx, false)
+	if trace.IsTracing(off) {
+		t.Fatal("expected no tracer when disabled")
+	}
+	on := trace.MaybeWithTracer(ctx, true)
+	if !trace.IsTracing(on) {
+		t.Fatal("expected tracer when enabled")
+	}
 }
 
 // Message.ParentName returns the immediate enclosing scope name.
