@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lczyk/trace"
 	assert "github.com/lczyk/trace/internal/muert"
@@ -138,6 +139,65 @@ func TestMessageParentNameRoot(t *testing.T) {
 	msgs := tr.Messages()
 	assert.Equal(t, len(msgs), 1)
 	assert.Equal(t, msgs[0].ParentName(), "")
+}
+
+// Default tracer leaves all Time() values as zero.
+func TestDefaultTracerNoTimestamps(t *testing.T) {
+	tr := trace.NewTracer()
+	defer tr.Un(tr.Trace("x"))
+	tr.Message("hi")
+	w, err := tr.ToWalkable()
+	assert.NoError(t, err)
+	_ = w.Walk(func(n trace.Node) error {
+		switch n := n.(type) {
+		case *trace.Enter:
+			if !n.Time().IsZero() {
+				t.Fatalf("expected zero time on default Enter, got %v", n.Time())
+			}
+		case *trace.Exit:
+			if !n.Time().IsZero() {
+				t.Fatalf("expected zero time on default Exit, got %v", n.Time())
+			}
+		case *trace.Message:
+			if !n.Time().IsZero() {
+				t.Fatalf("expected zero time on default Message, got %v", n.Time())
+			}
+		}
+		return nil
+	})
+}
+
+// NewTracerWithTime stamps every node and timestamps are monotonic.
+func TestTracerWithTimeStamps(t *testing.T) {
+	tr := trace.NewTracerWithTime()
+	ex := tr.Trace("x")
+	tr.Message("hi")
+	time.Sleep(time.Millisecond)
+	tr.Un(ex)
+	w, err := tr.ToWalkable()
+	assert.NoError(t, err)
+	var times []time.Time
+	_ = w.Walk(func(n trace.Node) error {
+		switch n := n.(type) {
+		case *trace.Enter:
+			times = append(times, n.Time())
+		case *trace.Exit:
+			times = append(times, n.Time())
+		case *trace.Message:
+			times = append(times, n.Time())
+		}
+		return nil
+	})
+	for i, ts := range times {
+		if ts.IsZero() {
+			t.Fatalf("node %d had zero time", i)
+		}
+	}
+	for i := 1; i < len(times); i++ {
+		if times[i].Before(times[i-1]) {
+			t.Fatalf("non-monotonic at %d: %v before %v", i, times[i], times[i-1])
+		}
+	}
 }
 
 // MaybeWithTracer respects the enabled flag.

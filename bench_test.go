@@ -67,6 +67,78 @@ func recurse(tr trace.Tracer, depth int) {
 	}
 }
 
+// Intern-cache benches: same-name vs varied-name Trace patterns.
+
+func BenchmarkTraceUnSameName(b *testing.B) {
+	// Same name every call -- hits the intern cache.
+	tr := trace.NewTracer()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tr.Un(tr.Trace("scope"))
+	}
+}
+
+func BenchmarkTraceUnVariedNames(b *testing.B) {
+	// Rotates through 8 names -- mostly misses the cache, hits the map.
+	tr := trace.NewTracer()
+	names := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tr.Un(tr.Trace(names[i&7]))
+	}
+}
+
+// SyncTracer wrapper overhead.
+
+func BenchmarkSyncTraceUn(b *testing.B) {
+	tr := trace.NewSyncTracer(trace.NewTracer())
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tr.Un(tr.Trace("scope"))
+	}
+}
+
+func BenchmarkSyncMessage(b *testing.B) {
+	tr := trace.NewSyncTracer(trace.NewTracer())
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tr.Message("hello")
+	}
+}
+
+// Timed-mode variants of the core ops.
+
+func BenchmarkTraceUnTimed(b *testing.B) {
+	tr := trace.NewTracerWithTime()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ex := tr.Trace("scope")
+		tr.Un(ex)
+	}
+}
+
+func BenchmarkMessageTimed(b *testing.B) {
+	tr := trace.NewTracerWithTime()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tr.Message("hello")
+	}
+}
+
+func BenchmarkDeepNestingTimed(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tr := trace.NewTracerWithTime()
+		recurse(tr, 64)
+	}
+}
+
 func BenchmarkDeepNesting(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
