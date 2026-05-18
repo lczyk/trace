@@ -242,6 +242,16 @@ func BenchmarkPrintTraceBigDiscard(b *testing.B) {
 	}
 }
 
+func BenchmarkPrintChromeTraceBigDiscard(b *testing.B) {
+	tr := trace.NewTracerWithTime()
+	buildBigTree(tr, 4, 6)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = printer.PrintChromeTrace(tr, io.Discard)
+	}
+}
+
 func BenchmarkPrintNDJSONBigDiscard(b *testing.B) {
 	tr := trace.NewTracer()
 	buildBigTree(tr, 4, 6)
