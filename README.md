@@ -57,7 +57,7 @@ output:
 - `Trace(name...) *Exit` / `Un(*Exit)` -- paired enter/exit; `defer tr.Un(tr.Trace(...))`.
 - `Here()` -- auto-name from caller info.
 - `Message`, `Messagef` -- inline messages.
-- `SetMessagesEnabled(bool)` -- runtime gate; structure stays, message noise off.
+- `SetMessagesEnabled(bool)` -- runtime gate. "structure-only" / "no-messages" mode: when off, `Message` / `Messagef` become no-ops while enter/exit nodes still record. Toggle freely mid-trace to silence noisy sections (e.g. per-token logging inside a parser) without losing the call-tree shape.
 - `ToWalkable()` -- finalises the trace (idempotent), returns an iterable.
 
 ### context helpers
