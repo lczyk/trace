@@ -274,9 +274,12 @@ func whereToString(where_args ...string) string {
 		where = here(callerName(2))
 	} else if len(where_args) == 1 {
 		where = where_args[0]
-	} else { // len(where) > 1 {
+	} else { // len(where_args) > 1
 		format := where_args[0]
-		rest := []any{where_args[1:]}
+		rest := make([]any, len(where_args)-1)
+		for i, v := range where_args[1:] {
+			rest[i] = v
+		}
 		where = fmt.Sprintf(format, rest...)
 	}
 	return where
