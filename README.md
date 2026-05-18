@@ -1,5 +1,7 @@
 # trace
 
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/lczyk/trace)
+![GitHub Tag](https://img.shields.io/github/v/tag/lczyk/trace?label=release)
 [![lint_and_test](https://github.com/lczyk/trace/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/lczyk/trace/actions/workflows/lint_and_test.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/lczyk/trace.svg)](https://pkg.go.dev/github.com/lczyk/trace)
 [![Go Report Card](https://goreportcard.com/badge/github.com/lczyk/trace)](https://goreportcard.com/report/github.com/lczyk/trace)
