@@ -42,15 +42,21 @@ func prettyPrintOneline(message trace.Message) string {
 }
 
 func prettyPrintMultiline(message trace.Message) string {
+	// stack[0] is the immediate enclosing scope, stack[len-1] the outermost
+	// ancestor. Print outermost first so the visual nesting reads top-down
+	// like a real call tree.
 	var out strings.Builder
 	stack := message.Stack()
-	for j := 0; j < len(stack); j++ {
-		out.WriteString(strings.Repeat(" ", max(j-1, 0))) // indent
-		if j > 0 {
-			out.WriteString("\u2514") // down-right angle
+	n := len(stack)
+	for depth := 0; depth < n; depth++ {
+		// stack index goes from outermost (n-1) down to innermost (0)
+		j := n - 1 - depth
+		if depth > 0 {
+			out.WriteString(strings.Repeat(" ", depth-1))
+			out.WriteString("\\_") // ASCII tree branch
 		}
-		out.WriteString(string(stack[j]))
-		if j < len(stack)-1 {
+		out.WriteString(stack[j])
+		if depth < n-1 {
 			out.WriteString("\n")
 		}
 	}
