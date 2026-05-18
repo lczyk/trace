@@ -242,6 +242,16 @@ func BenchmarkPrintTraceBigDiscard(b *testing.B) {
 	}
 }
 
+func BenchmarkPrintNDJSONBigDiscard(b *testing.B) {
+	tr := trace.NewTracer()
+	buildBigTree(tr, 4, 6)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = printer.PrintNDJSON(tr, io.Discard)
+	}
+}
+
 func BenchmarkPrintTraceHugeDiscard(b *testing.B) {
 	// fanout 5, depth 8 -> ~488k scopes
 	tr := trace.NewTracer()
