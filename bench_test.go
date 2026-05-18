@@ -206,3 +206,23 @@ func BenchmarkMessagefCtxNoTracer(b *testing.B) {
 		trace.MessagefCtx(ctx, "k=%d", i)
 	}
 }
+
+func BenchmarkMessageStrCtxNoTracer(b *testing.B) {
+	ctx := context.Background()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trace.MessageStrCtx(ctx, "hello")
+	}
+}
+
+func BenchmarkIsTracingNoTracer(b *testing.B) {
+	ctx := context.Background()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if trace.IsTracing(ctx) {
+			trace.MessagefCtx(ctx, "x=%d", i)
+		}
+	}
+}
