@@ -83,6 +83,30 @@ printer.PrettyPrintMessage(msg, printer.MULTILINE)
 tr := trace.NewSyncTracer(trace.NewTracer())
 ```
 
+## linter
+
+`cmd/trace-analyzer` is a `go vet` tool that flags `trace.MessageCtx(ctx, "literal")` callsites and suggests `trace.MessageStrCtx` (no variadic-args alloc on the no-tracer path).
+
+install:
+
+```
+go install github.com/lczyk/trace/cmd/trace-analyzer@latest
+```
+
+run as a vettool:
+
+```
+go vet -vettool=$(which trace-analyzer) ./...
+```
+
+example output:
+
+```
+parser.go:437:3: trace.MessageCtx with a single string arg pays a variadic-args alloc; use trace.MessageStrCtx instead
+```
+
+the analyzer lives in its own submodule (`cmd/trace-analyzer/go.mod`) so the main `trace` package stays dep-free for library consumers.
+
 ## demos
 
 ```
