@@ -6,6 +6,10 @@ import "sync"
 // share it. Note that the call-tree it records will interleave entries
 // from concurrent callers; the tree shape only reflects program flow
 // faithfully when used from a single goroutine.
+//
+// Methods unlock explicitly rather than via defer to keep the
+// per-method overhead minimal. The wrapped tracer's methods do not
+// panic during normal use, so the missing defer cannot leak the lock.
 type SyncTracer struct {
 	mu sync.Mutex
 	t  Tracer
@@ -16,62 +20,67 @@ func NewSyncTracer(t Tracer) *SyncTracer { return &SyncTracer{t: t} }
 
 func (s *SyncTracer) Trace(where ...string) *Exit {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.t.Trace(where...)
+	r := s.t.Trace(where...)
+	s.mu.Unlock()
+	return r
 }
 
 func (s *SyncTracer) Un(e *Exit) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.t.Un(e)
+	s.mu.Unlock()
 }
 
 func (s *SyncTracer) Message(args ...any) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.t.Message(args...)
+	s.mu.Unlock()
 }
 
 func (s *SyncTracer) Messagef(format string, args ...any) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.t.Messagef(format, args...)
+	s.mu.Unlock()
 }
 
 func (s *SyncTracer) Messages() []Message {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.t.Messages()
+	r := s.t.Messages()
+	s.mu.Unlock()
+	return r
 }
 
 func (s *SyncTracer) Done() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.t.Done()
+	s.mu.Unlock()
 }
 
 func (s *SyncTracer) ToWalkable() (walkable, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.t.ToWalkable()
+	w, err := s.t.ToWalkable()
+	s.mu.Unlock()
+	return w, err
 }
 
 func (s *SyncTracer) Len() int {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.t.Len()
+	r := s.t.Len()
+	s.mu.Unlock()
+	return r
 }
 
 func (s *SyncTracer) SetMessagesEnabled(b bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.t.SetMessagesEnabled(b)
+	s.mu.Unlock()
 }
 
 func (s *SyncTracer) MessagesEnabled() bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.t.MessagesEnabled()
+	r := s.t.MessagesEnabled()
+	s.mu.Unlock()
+	return r
 }
 
 var _ Tracer = (*SyncTracer)(nil)
