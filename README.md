@@ -73,6 +73,7 @@ output:
 printer.PrintTrace(tr, true, os.Stdout)         // tree to writer
 s := printer.SprintTrace(tr, true)              // tree to string
 printer.PrettyPrintMessage(msg, printer.MULTILINE)
+printer.PrintNDJSON(tr, os.Stdout)              // one json node per line (jq-friendly)
 ```
 
 ## concurrency
