@@ -7,6 +7,27 @@ import (
 	"github.com/lczyk/trace/printer"
 )
 
+func ExamplePrettyPrintMessage_multiline() {
+	tr := trace.NewTracer()
+	func() {
+		defer tr.Un(tr.Trace("a"))
+		func() {
+			defer tr.Un(tr.Trace("b"))
+			func() {
+				defer tr.Un(tr.Trace("c"))
+				tr.Message("hi")
+			}()
+		}()
+	}()
+	for _, m := range tr.Messages() {
+		printer.PrettyPrintMessage(m, printer.MULTILINE)
+	}
+	// Output:
+	// a
+	// \_b
+	//  \_c: hi
+}
+
 func ExamplePrintNDJSON() {
 	tr := trace.NewTracer()
 	func() {
