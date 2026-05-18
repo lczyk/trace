@@ -107,6 +107,60 @@ func TestDemoMultiline(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+func TestDemoNDJSON(t *testing.T) {
+	tr := trace.NewTracer()
+	func() {
+		defer tr.Un(tr.Trace("parse"))
+		tr.Message("starting")
+		func() {
+			defer tr.Un(tr.Trace("lex"))
+			tr.Messagef("token %s", "INT")
+		}()
+	}()
+	if err := printer.PrintNDJSON(tr, os.Stdout); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDemoReset(t *testing.T) {
+	tr := trace.NewTracer()
+	for i := 0; i < 3; i++ {
+		tr.Reset()
+		func() {
+			defer tr.Un(tr.Trace("cycle"))
+			tr.Messagef("iteration %d", i)
+		}()
+		dump(t, tr, true)
+	}
+}
+
+func TestDemoTimed(t *testing.T) {
+	tr := trace.NewTracerWithTime()
+	defer tr.Un(tr.Trace("work"))
+	tr.Message("step")
+	w, err := tr.ToWalkable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Walk(func(n trace.Node) error {
+		switch n := n.(type) {
+		case *trace.Enter:
+			if n.Name() == "<START>" {
+				return nil
+			}
+			fmt.Fprintf(os.Stdout, "ENTER %s at %s\n", n.Name(), n.Time().Format("15:04:05.000000"))
+		case *trace.Exit:
+			if n.Name() == "<END>" {
+				return nil
+			}
+			fmt.Fprintf(os.Stdout, "EXIT  %s at %s\n", n.Name(), n.Time().Format("15:04:05.000000"))
+		case *trace.Message:
+			fmt.Fprintf(os.Stdout, "MSG   [%s] %s at %s\n", n.ParentName(), n.Message, n.Time().Format("15:04:05.000000"))
+		}
+		return nil
+	})
+}
+
 func TestDemoContext(t *testing.T) {
 	tr := trace.NewTracer()
 	ctx := trace.WithTracer(context.Background(), tr)
