@@ -122,6 +122,8 @@ func TestDemoNDJSON(t *testing.T) {
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 func TestDemoReset(t *testing.T) {
 	tr := trace.NewTracer()
 	for i := 0; i < 3; i++ {
@@ -133,6 +135,8 @@ func TestDemoReset(t *testing.T) {
 		dump(t, tr, true)
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 func TestDemoTimed(t *testing.T) {
 	tr := trace.NewTracerWithTime()
@@ -160,6 +164,8 @@ func TestDemoTimed(t *testing.T) {
 		return nil
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 func TestDemoContext(t *testing.T) {
 	tr := trace.NewTracer()
