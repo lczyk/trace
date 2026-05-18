@@ -10,6 +10,18 @@ func WithTracer(ctx context.Context, tracer Tracer) context.Context {
 	return context.WithValue(ctx, tracerKey{}, tracer)
 }
 
+// MaybeWithTracer attaches a fresh tracer to ctx iff enabled is true,
+// otherwise returns ctx unchanged. Convenience for the common
+// conditional-trace pattern:
+//
+//	ctx = trace.MaybeWithTracer(ctx, opts.Trace)
+func MaybeWithTracer(ctx context.Context, enabled bool) context.Context {
+	if !enabled {
+		return ctx
+	}
+	return WithTracer(ctx, NewTracer())
+}
+
 func GetTracer(ctx context.Context) Tracer {
 	if ctx == nil {
 		// no context, no tracer
