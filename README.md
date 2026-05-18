@@ -1,5 +1,9 @@
 # trace
 
+[![lint_and_test](https://github.com/lczyk/trace/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/lczyk/trace/actions/workflows/lint_and_test.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/lczyk/trace.svg)](https://pkg.go.dev/github.com/lczyk/trace)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lczyk/trace)](https://goreportcard.com/report/github.com/lczyk/trace)
+
 structured call-tree tracing for go. records function enter/exit + inline messages, prints the tree, optional context-carried so callers without a tracer pay near-zero cost.
 
 ```
