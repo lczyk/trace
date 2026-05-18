@@ -193,6 +193,33 @@ type tracer struct {
 	messagesEnabled bool
 	// set once Done has appended the closing END_NODE exit
 	done bool
+	// chunked arenas: pointers handed out remain valid across grows
+	enters arena[Enter]
+	exits  arena[Exit]
+	msgs   arena[Message]
+}
+
+// arenaChunk is the per-chunk capacity. tuned for typical trace depths.
+const arenaChunk = 64
+
+// arena is a chunked bump allocator. *T pointers handed out remain valid
+// as new chunks are appended (unlike a single growable slice, where a
+// realloc would invalidate prior pointers).
+type arena[T any] struct {
+	chunks [][]T
+	idx    int
+}
+
+func (a *arena[T]) new(v T) *T {
+	if len(a.chunks) == 0 || a.idx == arenaChunk {
+		a.chunks = append(a.chunks, make([]T, arenaChunk))
+		a.idx = 0
+	}
+	c := a.chunks[len(a.chunks)-1]
+	c[a.idx] = v
+	p := &c[a.idx]
+	a.idx++
+	return p
 }
 
 func (t *tracer) SetMessagesEnabled(b bool) { t.messagesEnabled = b }
@@ -258,12 +285,12 @@ func whereToString(where_args ...string) string {
 func (t *tracer) Trace(where ...string) *Exit {
 	where_str := whereToString(where...)
 	debug("> entering", where_str)
-	n := &Enter{name: where_str}
+	n := t.enters.new(Enter{name: where_str})
 	t.append(n)
-	return &Exit{
+	return t.exits.new(Exit{
 		name:   where_str,
 		parent: n,
-	}
+	})
 }
 
 // Usage pattern: defer t.Un(t.Trace(p, "..."))
@@ -296,11 +323,10 @@ func (t *tracer) Message(args ...any) {
 		return
 	}
 	debug("  messaging", t.where.name)
-	message := argsToMessage(args...)
-	t.append(&Message{
-		Message: message,
+	t.append(t.msgs.new(Message{
+		Message: argsToMessage(args...),
 		parent:  t.where,
-	})
+	}))
 }
 
 func (t *tracer) Messagef(format string, args ...any) {
@@ -308,10 +334,10 @@ func (t *tracer) Messagef(format string, args ...any) {
 		return
 	}
 	debug("  messaging", t.where.name)
-	t.append(&Message{
+	t.append(t.msgs.new(Message{
 		Message: fmt.Sprintf(format, args...),
 		parent:  t.where,
-	})
+	}))
 }
 
 type settable_next interface{ SetNext(Node) }
@@ -337,10 +363,10 @@ func (t *tracer) Done() {
 	if t.done {
 		return
 	}
-	t.append(&Exit{
+	t.append(t.exits.new(Exit{
 		name:   END_NODE,
 		parent: t.stack[0].(*Enter), // link to the START_NODE
-	})
+	}))
 	t.done = true
 }
 
