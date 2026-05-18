@@ -273,10 +273,11 @@ func here(name string) string {
 	return name
 }
 
-//go:noinline
 // Here returns the unqualified name of the calling function. Pair with
 // [Tracer.Trace] when you want a stable scope name without spelling it
 // out.
+//
+//go:noinline
 func Here() string {
 	return here(callerName(1))
 }
