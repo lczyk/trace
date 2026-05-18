@@ -1,6 +1,7 @@
 package printer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -114,4 +115,18 @@ func PrintTrace(
 	writer io.Writer,
 ) {
 	writer.Write([]byte(SprintTrace(tracer, print_messages)))
+}
+
+// PrintCtx prints the trace carried by ctx (if any) to w. No-op when
+// ctx has no tracer attached. Convenience over the
+// GetTracer+Done+ToWalkable+Walk boilerplate for the common
+// "dump-trace-at-end" case:
+//
+//	defer printer.PrintCtx(ctx, os.Stderr, true)
+func PrintCtx(ctx context.Context, w io.Writer, print_messages bool) {
+	tracer := trace.GetTracer(ctx)
+	if tracer == nil {
+		return
+	}
+	PrintTrace(tracer, print_messages, w)
 }
