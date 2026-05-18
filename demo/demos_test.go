@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/lczyk/trace"
 	"github.com/lczyk/trace/printer"
@@ -163,6 +165,63 @@ func TestDemoTimed(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TestDemoChromeTrace writes a Chrome Trace Event Format JSON file
+// alongside this test (demo/trace.chrome.json, gitignored). Load it in
+// chrome://tracing or ui.perfetto.dev to see the call tree as an
+// interactive flame graph.
+func TestDemoChromeTrace(t *testing.T) {
+	tr := trace.NewTracerWithTime()
+	parseDemo(tr)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(cwd, "trace.chrome.json")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := printer.PrintChromeTrace(tr, f); err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("wrote %s -- open in chrome://tracing or ui.perfetto.dev\n", path)
+}
+
+func parseDemo(tr trace.Tracer) {
+	defer tr.Un(tr.Trace("parse"))
+	tr.Message("starting")
+	time.Sleep(2 * time.Millisecond)
+	for i := 0; i < 3; i++ {
+		statementDemo(tr, i)
+	}
+	tr.Message("done")
+}
+
+func statementDemo(tr trace.Tracer, i int) {
+	defer tr.Un(tr.Trace("statement"))
+	tr.Messagef("stmt %d", i)
+	time.Sleep(1 * time.Millisecond)
+	expressionDemo(tr)
+}
+
+func expressionDemo(tr trace.Tracer) {
+	defer tr.Un(tr.Trace("expression"))
+	lexDemo(tr)
+	time.Sleep(500 * time.Microsecond)
+}
+
+func lexDemo(tr trace.Tracer) {
+	defer tr.Un(tr.Trace("lex"))
+	for _, tok := range []string{"INT", "PLUS", "INT"} {
+		tr.Messagef("token %s", tok)
+	}
+	time.Sleep(300 * time.Microsecond)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

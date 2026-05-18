@@ -32,7 +32,7 @@ func ExamplePrintChromeTrace() {
 	tr := trace.NewTracerWithTime()
 	defer tr.Un(tr.Trace("work"))
 	// pipe os.Stdout into a .json file, then load in chrome://tracing
-	// or perfetto.dev/ui to view the call tree as a flame graph.
+	// or ui.perfetto.dev to view the call tree as a flame graph.
 	_ = printer.PrintChromeTrace(tr, os.Stdout)
 }
 

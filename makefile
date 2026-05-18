@@ -30,10 +30,6 @@ cover-open: cover  ## Run coverage and open the HTML report in a browser
 demo:  ## Run the demos (trace-output showcases)
 	./demo/demo_runner.sh
 
-.PHONY: demo-chrome
-demo-chrome:  ## Write a Chrome Trace Event JSON file to demo/trace.chrome.json
-	go test -tags demo_chrome -count=1 -run TestDemoChromeTrace ./demo/
-
 .PHONY: lint
 lint:  ## go vet + gofmt check (no writes)
 	go vet ./...
