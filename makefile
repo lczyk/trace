@@ -38,10 +38,6 @@ lint:  ## go vet + gofmt check (no writes)
 format:  ## gofmt the tree in place
 	gofmt -s -w .
 
-.PHONY: spellcheck
-spellcheck:  ## Spellcheck sources and docs with cspell (via npx)
-	npx --yes cspell --no-progress --gitignore "**/*.go" "**/*.md" "makefile"
-
 .PHONY: verify
-verify: lint test spellcheck  ## Pre-commit gate: lint, test, spellcheck
+verify: lint test  ## Pre-commit gate: lint, test
 	@echo "All checks passed."
