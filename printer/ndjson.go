@@ -31,6 +31,7 @@ func PrintNDJSON(tr trace.Tracer, w io.Writer) error {
 		return err
 	}
 	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false) // trace output is not HTML-bound; keep <START> readable
 	return walkable.Walk(func(n trace.Node) error {
 		var obj ndjsonNode
 		switch n := n.(type) {
