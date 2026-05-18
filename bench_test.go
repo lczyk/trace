@@ -109,6 +109,56 @@ func BenchmarkSprintTrace(b *testing.B) {
 	}
 }
 
+// buildBigTree populates a tracer with a wide+deep call tree.
+// fanout children per node, depth levels deep, one message per scope.
+func buildBigTree(tr trace.Tracer, fanout, depth int) {
+	var rec func(d int)
+	rec = func(d int) {
+		if d == 0 {
+			return
+		}
+		for i := 0; i < fanout; i++ {
+			ex := tr.Trace("scope")
+			tr.Message("msg")
+			rec(d - 1)
+			tr.Un(ex)
+		}
+	}
+	rec(depth)
+}
+
+func BenchmarkSprintTraceBig(b *testing.B) {
+	// fanout 4, depth 6 -> ~5460 scopes + same many messages
+	tr := trace.NewTracer()
+	buildBigTree(tr, 4, 6)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = printer.SprintTrace(tr, true)
+	}
+}
+
+func BenchmarkPrintTraceBigDiscard(b *testing.B) {
+	tr := trace.NewTracer()
+	buildBigTree(tr, 4, 6)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		printer.PrintTrace(tr, true, io.Discard)
+	}
+}
+
+func BenchmarkPrintTraceHugeDiscard(b *testing.B) {
+	// fanout 5, depth 8 -> ~488k scopes
+	tr := trace.NewTracer()
+	buildBigTree(tr, 5, 8)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		printer.PrintTrace(tr, true, io.Discard)
+	}
+}
+
 func BenchmarkPrintTraceDiscard(b *testing.B) {
 	tr := trace.NewTracer()
 	for i := 0; i < 50; i++ {
