@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/MarcinKonowalczyk/trace"
+	"github.com/lczyk/trace"
 )
 
 // helper to write trace output with indentation

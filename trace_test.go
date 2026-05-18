@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/MarcinKonowalczyk/trace"
-	assert "github.com/MarcinKonowalczyk/trace/internal/muert"
-	"github.com/MarcinKonowalczyk/trace/printer"
+	"github.com/lczyk/trace"
+	assert "github.com/lczyk/trace/internal/muert"
+	"github.com/lczyk/trace/printer"
 )
 
 func TestNewTracer(t *testing.T) {

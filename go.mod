@@ -1,3 +1,3 @@
-module github.com/MarcinKonowalczyk/trace
+module github.com/lczyk/trace
 
 go 1.24.3
