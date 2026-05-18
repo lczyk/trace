@@ -200,6 +200,38 @@ func TestTracerWithTimeStamps(t *testing.T) {
 	}
 }
 
+// Reset drops recorded nodes and lets the tracer be reused.
+func TestReset(t *testing.T) {
+	tr := trace.NewTracer()
+	func() {
+		defer tr.Un(tr.Trace("first"))
+		tr.Message("a")
+	}()
+	assert.Equal(t, len(tr.Messages()), 1)
+
+	tr.Reset()
+	assert.Equal(t, tr.Len(), 1) // just START
+
+	func() {
+		defer tr.Un(tr.Trace("second"))
+		tr.Message("b")
+	}()
+	msgs := tr.Messages()
+	assert.Equal(t, len(msgs), 1)
+	assert.Equal(t, msgs[0].Message, "b")
+	assert.Equal(t, msgs[0].ParentName(), "second")
+}
+
+// Reset preserves the message-enabled gate.
+func TestResetKeepsGate(t *testing.T) {
+	tr := trace.NewTracer()
+	tr.SetMessagesEnabled(false)
+	tr.Reset()
+	if tr.MessagesEnabled() {
+		t.Fatal("expected gate to survive Reset")
+	}
+}
+
 // MaybeWithTracer respects the enabled flag.
 func TestMaybeWithTracer(t *testing.T) {
 	ctx := context.Background()

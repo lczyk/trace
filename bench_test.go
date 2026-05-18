@@ -90,6 +90,28 @@ func BenchmarkTraceUnVariedNames(b *testing.B) {
 	}
 }
 
+// Reset-and-reuse vs. fresh-tracer cost for recycling patterns.
+
+func BenchmarkResetReuse(b *testing.B) {
+	tr := trace.NewTracer()
+	// warm: fill the arenas once so the reset paths exercise the reuse
+	recurse(tr, 64)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tr.Reset()
+		recurse(tr, 64)
+	}
+}
+
+func BenchmarkNewTracerEach(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tr := trace.NewTracer()
+		recurse(tr, 64)
+	}
+}
+
 // SyncTracer wrapper overhead.
 
 func BenchmarkSyncTraceUn(b *testing.B) {
