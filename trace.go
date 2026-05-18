@@ -37,6 +37,9 @@ type Tracer interface {
 	MessagesEnabled() bool
 }
 
+// NewTracer constructs a new [Tracer] with message recording enabled.
+// The returned tracer is not safe for concurrent use; wrap with
+// [NewSyncTracer] if multiple goroutines need to share one.
 func NewTracer() Tracer {
 	chain := make([]Node, 1, 32)
 	chain[0] = &Enter{
@@ -74,10 +77,14 @@ type linked interface {
 	Prev() Node
 }
 
+// Node is the common type for every entry in a recorded trace:
+// [Enter], [Exit], and [Message]. Use a type switch in a [Tracer.Walk]
+// callback to dispatch on concrete kind.
 type Node interface {
 	linked
 }
 
+// Enter is a node marking the beginning of a traced scope.
 type Enter struct {
 	name string
 	// next/prev nodes in the chain
@@ -107,6 +114,8 @@ var (
 	_ namer  = (*Enter)(nil)
 )
 
+// Exit is a node marking the end of a traced scope, paired with the
+// [Enter] returned by [Tracer.Trace] via [Tracer.Un].
 type Exit struct {
 	name string
 	// next/prev nodes in the chain
@@ -138,6 +147,8 @@ var (
 	_ namer  = (*Exit)(nil)
 )
 
+// Message is an inline note attached to the current scope at the time
+// it was recorded.
 type Message struct {
 	Message string
 	// next/prev nodes in the chain
@@ -263,6 +274,9 @@ func here(name string) string {
 }
 
 //go:noinline
+// Here returns the unqualified name of the calling function. Pair with
+// [Tracer.Trace] when you want a stable scope name without spelling it
+// out.
 func Here() string {
 	return here(callerName(1))
 }
