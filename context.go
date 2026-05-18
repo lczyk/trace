@@ -70,6 +70,14 @@ func HereCtx(ctx context.Context) string {
 	return ""
 }
 
+// MessageCtx records a message on the tracer attached to ctx, if any.
+//
+// Performance note: the variadic ...any parameter forces the args slice
+// to be allocated at the callsite even when no tracer is attached
+// (~16B / 1 alloc per call). For hot paths that pass a single string,
+// prefer [MessageStrCtx], which is non-variadic and stays alloc-free in
+// the no-tracer case. For mixed values, guard the call with
+// [IsTracing].
 func MessageCtx(ctx context.Context, args ...any) {
 	tracer := GetTracer(ctx)
 	if tracer != nil {
@@ -77,6 +85,13 @@ func MessageCtx(ctx context.Context, args ...any) {
 	}
 }
 
+// MessagefCtx records a printf-style message on the tracer attached to
+// ctx, if any.
+//
+// Performance note: variadic ...any forces the args slice to be
+// allocated at the callsite even when no tracer is attached
+// (~24B / 1 alloc per call). For hot paths, guard with [IsTracing] to
+// skip both the alloc and the Sprintf.
 func MessagefCtx(ctx context.Context, format string, args ...any) {
 	tracer := GetTracer(ctx)
 	if tracer != nil {
