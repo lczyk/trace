@@ -71,3 +71,22 @@ func MessagefCtx(ctx context.Context, format string, args ...any) {
 		tracer.Messagef(format, args...)
 	}
 }
+
+// IsTracing reports whether ctx carries an active tracer. Use to guard
+// hot-path Message/Messagef calls and skip the variadic-args alloc when
+// tracing is off:
+//
+//	if trace.IsTracing(ctx) { trace.MessagefCtx(ctx, "x=%d", x) }
+func IsTracing(ctx context.Context) bool {
+	return GetTracer(ctx) != nil
+}
+
+// MessageStrCtx is a non-variadic fast path for single-string messages.
+// Avoids the variadic-args slice alloc paid at every MessageCtx callsite
+// even when no tracer is present.
+func MessageStrCtx(ctx context.Context, msg string) {
+	tracer := GetTracer(ctx)
+	if tracer != nil {
+		tracer.Message(msg)
+	}
+}
